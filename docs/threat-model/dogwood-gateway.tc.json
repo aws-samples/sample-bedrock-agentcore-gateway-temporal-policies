@@ -1,0 +1,527 @@
+{
+  "schema": 1,
+  "applicationInfo": {
+    "name": "Threat Model Export",
+    "description": "Educational security demonstration (\"Dogwood Gateway\" / \"AgentCore Gateway + Dogwood\"). A public AWS sample that shows temporal authorization policies (Dogwood language) and rate limiting enforced at Amazon Bedrock AgentCore Gateway. A real LLM agent (Bedrock Converse tool-use loop) calls synthetic banking/trading tools through the gateway; every call crosses a policy engine that enforces session-aware Dogwood policies (output-to-input integrity, cumulative budget, one-time-use approvals) plus gateway rate limits. A React dashboard visualizes each tool call and the gateway's verdict. Intended to be deployed to a sandbox account, demonstrated, and torn down. All banking/trading data is synthetic and hardcoded; no real funds, customers, or PII exist. Not a production system."
+  },
+  "architecture": {
+    "description": ""
+  },
+  "dataflow": {
+    "description": ""
+  },
+  "assumptions": [],
+  "mitigations": [
+    {
+      "id": "f86e025b-2b75-4c50-8b94-dcd2f719c1fd",
+      "numericId": 1,
+      "status": "mitigationResolved",
+      "content": "API Gateway JWT authorizer on every route (/config,/run,/events,/mode) validates a Cognito access token; unauthenticated requests are rejected before Lambda. Verified in the smoke test (401).",
+      "displayOrder": 1,
+      "metadata": []
+    },
+    {
+      "id": "32a23817-c643-4fff-97c7-f92061ae7026",
+      "numericId": 2,
+      "status": "mitigationResolved",
+      "content": "Cognito self sign-up disabled; the first operator is created by deploy.sh via admin-create-user; preventUserExistenceErrors enabled. Additional users only via admin action.",
+      "displayOrder": 2,
+      "metadata": []
+    },
+    {
+      "id": "1188dd9a-2a1f-4f2c-9dbc-dcdc15ad6b7d",
+      "numericId": 3,
+      "status": "mitigationResolved",
+      "content": "Dogwood policy TransferRequiresLookup (output-to-input integrity): transfer_funds permitted only when a prior get_account_balance response in-session returned the destination account.",
+      "displayOrder": 3,
+      "metadata": []
+    },
+    {
+      "id": "84f11305-c58f-482a-b390-c277f66e9a7e",
+      "numericId": 4,
+      "status": "mitigationResolved",
+      "content": "Dogwood policy SessionBudgetCap (sum aggregation): forbids purchase_item once the session's cumulative amount exceeds the budget, including the current request.",
+      "displayOrder": 4,
+      "metadata": []
+    },
+    {
+      "id": "3bb17829-4242-4bdc-8d93-71da39384d81",
+      "numericId": 5,
+      "status": "mitigationResolved",
+      "content": "Dogwood policies TradeRequiresUnusedApproval (negated-left since) and TradeOneAttemptPerApproval (anchored count + bind): a trade is permitted only while no completed trade has occurred since a matching approval for the exact ticker and quantity, and a forbid counts execution attempts (including in-flight requests) since the last matching approval, so concurrent double-execution against one approval is denied.",
+      "displayOrder": 5,
+      "metadata": []
+    },
+    {
+      "id": "f923eeb3-1b0c-4dee-8af6-bd122b335763",
+      "numericId": 6,
+      "status": "mitigationResolved",
+      "content": "Policy engine runs ENFORCE, deny-by-default, at the gateway outside agent code; the agent cannot see or reason around the policies. Enforced on every tools/call.",
+      "displayOrder": 6,
+      "metadata": []
+    },
+    {
+      "id": "3f47cce3-789c-4b02-b3cc-5637ea918d46",
+      "numericId": 7,
+      "status": "mitigationResolved",
+      "content": "Gateway rate limit (1 req/s on the failing tool, 300/min wildcard) plus per-invocation Lambda timeout and a hard tool-call budget in the agent bound runaway consumption.",
+      "displayOrder": 7,
+      "metadata": []
+    },
+    {
+      "id": "5f0a5633-3fa8-4f0d-b645-16ac251786ae",
+      "numericId": 8,
+      "status": "mitigationResolved",
+      "content": "Transport & storage hardening: private S3 with CloudFront Origin Access Control, enforceSSL, TLS everywhere, DynamoDB encryption at rest with 24h TTL, synthetic data only.",
+      "displayOrder": 8,
+      "metadata": []
+    },
+    {
+      "id": "645c79a9-f2ed-4ac1-bfcb-d972166378b9",
+      "numericId": 9,
+      "status": "mitigationResolved",
+      "content": "iam:PassRole for the gateway role is constrained with a PassedToService condition (bedrock-agentcore.amazonaws.com); gateway role invoke is scoped to the BankTools function ARN.",
+      "displayOrder": 9,
+      "metadata": []
+    },
+    {
+      "id": "35c1e395-42b1-4100-be6e-fdeefd5e6abc",
+      "numericId": 10,
+      "status": "mitigationResolved",
+      "content": "Scope the Agent Lambda's bedrock:InvokeModel to the configured model ARNs (specific inference profile + that model's foundation-model ARN) instead of foundation-model/* and inference-profile/*.",
+      "displayOrder": 10,
+      "metadata": []
+    },
+    {
+      "id": "d37c3531-3155-4da1-ba08-e171d89a17bb",
+      "numericId": 11,
+      "status": "mitigationIdentified",
+      "content": "RECOMMENDED for production: enable AgentCore Gateway application logs (OTEL) and API Gateway access logs to attribute mode flips and runs; the demo relies on CloudTrail only.",
+      "displayOrder": 11,
+      "metadata": []
+    },
+    {
+      "id": "1c953d14-2d16-41f8-8857-51b23bc838e4",
+      "numericId": 12,
+      "status": "mitigationIdentified",
+      "content": "ACCEPTED for demo / documented: gateway exceptionLevel is DEBUG so the dashboard can show denial reasons verbatim. In production use a less verbose level to avoid disclosing policy structure.",
+      "displayOrder": 12,
+      "metadata": []
+    },
+    {
+      "id": "c4fa7067-aac4-409a-8bbd-b6a24ffde495",
+      "numericId": 13,
+      "status": "mitigationIdentified",
+      "content": "ACCEPTED for demo / documented: session-scoped temporal controls (budget, rate, approvals) shape behavior within a cooperative session; a caller controlling their own session id can reset counters. Not a hard boundary.",
+      "displayOrder": 13,
+      "metadata": []
+    },
+    {
+      "id": "10117322-4f53-4a8f-8b73-1eaee3b61223",
+      "numericId": 14,
+      "status": "mitigationIdentified",
+      "content": "ACCEPTED for demo / documented: the LOG_ONLY toggle is an intentional teaching feature exposed through the authenticated API; it makes enforcement observe-only. Not present in a production posture.",
+      "displayOrder": 14,
+      "metadata": []
+    },
+    {
+      "id": "c33f7015-07d5-45d6-91fc-dcf202ffa4d9",
+      "numericId": 15,
+      "status": "mitigationIdentified",
+      "content": "RECOMMENDED / defense-in-depth: pin dependency versions and scan with CVE tooling; add SPDX/MIT-0 license headers; consider AWS WAF on CloudFront/API and cdk-nag suppressions with justifications for production.",
+      "displayOrder": 15,
+      "metadata": []
+    },
+    {
+      "id": "688843a4-a824-4b47-a3f0-19e46d971069",
+      "numericId": 16,
+      "status": "mitigationResolved",
+      "content": "Dogwood policy TaintedSessionNoTransfer (forbid + formerly): once a read_market_research response exists in the session, transfer_funds is forbidden for the rest of the session. A forbid overrides every permit, so prompt-injection containment holds even for transfers that satisfy TransferRequiresLookup, and regardless of whether the injection fooled the model. Demonstrated in Act 6.",
+      "displayOrder": 16,
+      "metadata": []
+    }
+  ],
+  "assumptionLinks": [],
+  "mitigationLinks": [
+    {
+      "linkedId": "8c991f10-d869-45de-93e5-244a83480761",
+      "mitigationId": "f86e025b-2b75-4c50-8b94-dcd2f719c1fd"
+    },
+    {
+      "linkedId": "f813026e-70af-4339-a500-49bab91d8988",
+      "mitigationId": "32a23817-c643-4fff-97c7-f92061ae7026"
+    },
+    {
+      "linkedId": "77cd135a-f3b9-4950-931b-d257d5d0f1b3",
+      "mitigationId": "1188dd9a-2a1f-4f2c-9dbc-dcdc15ad6b7d"
+    },
+    {
+      "linkedId": "77cd135a-f3b9-4950-931b-d257d5d0f1b3",
+      "mitigationId": "f923eeb3-1b0c-4dee-8af6-bd122b335763"
+    },
+    {
+      "linkedId": "ef5e2e31-39bd-499e-952a-83fcdcd2d117",
+      "mitigationId": "84f11305-c58f-482a-b390-c277f66e9a7e"
+    },
+    {
+      "linkedId": "ef5e2e31-39bd-499e-952a-83fcdcd2d117",
+      "mitigationId": "f923eeb3-1b0c-4dee-8af6-bd122b335763"
+    },
+    {
+      "linkedId": "73eee689-86db-4b71-86ee-f3f14effd8f7",
+      "mitigationId": "3bb17829-4242-4bdc-8d93-71da39384d81"
+    },
+    {
+      "linkedId": "73eee689-86db-4b71-86ee-f3f14effd8f7",
+      "mitigationId": "f923eeb3-1b0c-4dee-8af6-bd122b335763"
+    },
+    {
+      "linkedId": "335f8d36-4682-48e1-8501-2dc4682e6586",
+      "mitigationId": "c4fa7067-aac4-409a-8bbd-b6a24ffde495"
+    },
+    {
+      "linkedId": "dad224fc-1033-4e4e-af91-645bb8c5ffe0",
+      "mitigationId": "10117322-4f53-4a8f-8b73-1eaee3b61223"
+    },
+    {
+      "linkedId": "dad224fc-1033-4e4e-af91-645bb8c5ffe0",
+      "mitigationId": "d37c3531-3155-4da1-ba08-e171d89a17bb"
+    },
+    {
+      "linkedId": "2e671167-e8c3-4b55-8cd5-3f89377a7f1e",
+      "mitigationId": "3f47cce3-789c-4b02-b3cc-5637ea918d46"
+    },
+    {
+      "linkedId": "517c8610-c1e0-4019-824d-43a39c802c51",
+      "mitigationId": "3f47cce3-789c-4b02-b3cc-5637ea918d46"
+    },
+    {
+      "linkedId": "517c8610-c1e0-4019-824d-43a39c802c51",
+      "mitigationId": "35c1e395-42b1-4100-be6e-fdeefd5e6abc"
+    },
+    {
+      "linkedId": "3998780b-596e-4a29-a5ab-dd2257274d5f",
+      "mitigationId": "d37c3531-3155-4da1-ba08-e171d89a17bb"
+    },
+    {
+      "linkedId": "d8b89449-1b0d-48f0-bd35-a1951d29f6f4",
+      "mitigationId": "1c953d14-2d16-41f8-8857-51b23bc838e4"
+    },
+    {
+      "linkedId": "087f08af-9709-46f3-ab31-e84d687d7460",
+      "mitigationId": "35c1e395-42b1-4100-be6e-fdeefd5e6abc"
+    },
+    {
+      "linkedId": "087f08af-9709-46f3-ab31-e84d687d7460",
+      "mitigationId": "645c79a9-f2ed-4ac1-bfcb-d972166378b9"
+    },
+    {
+      "linkedId": "d818bd6c-2349-40eb-8641-fc270c9855c7",
+      "mitigationId": "c33f7015-07d5-45d6-91fc-dcf202ffa4d9"
+    },
+    {
+      "linkedId": "d818bd6c-2349-40eb-8641-fc270c9855c7",
+      "mitigationId": "5f0a5633-3fa8-4f0d-b645-16ac251786ae"
+    },
+    {
+      "linkedId": "61bad56a-9aad-41e1-ac87-ce856de1c311",
+      "mitigationId": "c33f7015-07d5-45d6-91fc-dcf202ffa4d9"
+    },
+    {
+      "linkedId": "8c991f10-d869-45de-93e5-244a83480761",
+      "mitigationId": "5f0a5633-3fa8-4f0d-b645-16ac251786ae"
+    },
+    {
+      "linkedId": "77cd135a-f3b9-4950-931b-d257d5d0f1b3",
+      "mitigationId": "688843a4-a824-4b47-a3f0-19e46d971069"
+    }
+  ],
+  "threats": [
+    {
+      "id": "8c991f10-d869-45de-93e5-244a83480761",
+      "numericId": 1,
+      "threatSource": "An unauthenticated internet user who discovered the CloudFront/API URL",
+      "prerequisites": "network access to the public API endpoint, no valid token",
+      "threatAction": "call demo API routes (/run, /mode, /events) without a Cognito JWT",
+      "threatImpact": "unauthorized control of the demo and its Bedrock/gateway spend",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A008",
+        "A009"
+      ],
+      "statement": "A An unauthenticated internet user who discovered the CloudFront/API URL network access to the public API endpoint, no valid token can call demo API routes (/run, /mode, /events) without a Cognito JWT, which leads to unauthorized control of the demo and its Bedrock/gateway spend",
+      "displayOrder": 1,
+      "status": "threatIdentified",
+      "tags": [
+        "STRIDE-S",
+        "auth"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "f813026e-70af-4339-a500-49bab91d8988",
+      "numericId": 2,
+      "threatSource": "An external actor with the public Cognito client id and hosted-UI URL",
+      "prerequisites": "knowledge of the user pool hosted UI (client id is public in config.json)",
+      "threatAction": "self-register a new account to obtain a valid JWT",
+      "threatImpact": "bypass of the intended allowlist of operators",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A008"
+      ],
+      "statement": "A An external actor with the public Cognito client id and hosted-UI URL knowledge of the user pool hosted UI (client id is public in config.json) can self-register a new account to obtain a valid JWT, which leads to bypass of the intended allowlist of operators",
+      "displayOrder": 2,
+      "status": "threatIdentified",
+      "tags": [
+        "STRIDE-S",
+        "auth"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "77cd135a-f3b9-4950-931b-d257d5d0f1b3",
+      "numericId": 3,
+      "threatSource": "A manipulated agent (prompt injection in a user message or tool output)",
+      "prerequisites": "attacker-controlled text reaches the model; agent holds valid gateway credentials",
+      "threatAction": "call transfer_funds with a fabricated destination account never returned by a lookup",
+      "threatImpact": "funds routed to an attacker account (in a real deployment)",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A013"
+      ],
+      "statement": "A A manipulated agent (prompt injection in a user message or tool output) attacker-controlled text reaches the model; agent holds valid gateway credentials can call transfer_funds with a fabricated destination account never returned by a lookup, which leads to funds routed to an attacker account (in a real deployment)",
+      "displayOrder": 3,
+      "status": "threatIdentified",
+      "tags": [
+        "STRIDE-T",
+        "agent",
+        "core-demo"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "ef5e2e31-39bd-499e-952a-83fcdcd2d117",
+      "numericId": 4,
+      "threatSource": "A runaway or manipulated agent",
+      "prerequisites": "agent can issue many tool calls in a session",
+      "threatAction": "salami-slice many sub-threshold purchases to exceed the intended session budget",
+      "threatImpact": "cumulative financial exposure beyond what any single approval allowed",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A013"
+      ],
+      "statement": "A A runaway or manipulated agent agent can issue many tool calls in a session can salami-slice many sub-threshold purchases to exceed the intended session budget, which leads to cumulative financial exposure beyond what any single approval allowed",
+      "displayOrder": 4,
+      "status": "threatIdentified",
+      "tags": [
+        "STRIDE-T",
+        "agent",
+        "core-demo"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "73eee689-86db-4b71-86ee-f3f14effd8f7",
+      "numericId": 5,
+      "threatSource": "A manipulated agent reusing a standing approval",
+      "prerequisites": "one approval event exists in the session trajectory",
+      "threatAction": "execute the same trade multiple times against a single one-time approval",
+      "threatImpact": "approval replay multiplies exposure a human signed off once",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A013"
+      ],
+      "statement": "A A manipulated agent reusing a standing approval one approval event exists in the session trajectory can execute the same trade multiple times against a single one-time approval, which leads to approval replay multiplies exposure a human signed off once",
+      "displayOrder": 5,
+      "status": "threatIdentified",
+      "tags": [
+        "STRIDE-T",
+        "agent",
+        "core-demo"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "335f8d36-4682-48e1-8501-2dc4682e6586",
+      "numericId": 6,
+      "threatSource": "A caller who controls their own policy-session id",
+      "prerequisites": "ability to set the x-amzn-bedrock-agentcore-policy-session-id header",
+      "threatAction": "start a fresh session to reset session-scoped counters (budget, rate, approvals)",
+      "threatImpact": "session-scoped temporal controls do not bound a determined caller",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A010"
+      ],
+      "statement": "A A caller who controls their own policy-session id ability to set the x-amzn-bedrock-agentcore-policy-session-id header can start a fresh session to reset session-scoped counters (budget, rate, approvals), which leads to session-scoped temporal controls do not bound a determined caller",
+      "displayOrder": 6,
+      "status": "threatIdentified",
+      "tags": [
+        "STRIDE-T",
+        "limitation"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "dad224fc-1033-4e4e-af91-645bb8c5ffe0",
+      "numericId": 7,
+      "threatSource": "Any operator with dashboard access",
+      "prerequisites": "valid Cognito JWT",
+      "threatAction": "flip the policy engine to LOG_ONLY and leave it there",
+      "threatImpact": "all temporal enforcement silently becomes observe-only; denials stop",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A009"
+      ],
+      "statement": "A Any operator with dashboard access valid Cognito JWT can flip the policy engine to LOG_ONLY and leave it there, which leads to all temporal enforcement silently becomes observe-only; denials stop",
+      "displayOrder": 7,
+      "status": "threatIdentified",
+      "tags": [
+        "STRIDE-E",
+        "demo-feature"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "2e671167-e8c3-4b55-8cd5-3f89377a7f1e",
+      "numericId": 8,
+      "threatSource": "A runaway agent hitting a failing tool",
+      "prerequisites": "a tool that errors and an agent that retries",
+      "threatAction": "flood the gateway with tool calls, or drive heavy Bedrock token/connection use",
+      "threatImpact": "cost blow-up and starvation of other traffic",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A012"
+      ],
+      "statement": "A A runaway agent hitting a failing tool a tool that errors and an agent that retries can flood the gateway with tool calls, or drive heavy Bedrock token/connection use, which leads to cost blow-up and starvation of other traffic",
+      "displayOrder": 8,
+      "status": "threatIdentified",
+      "tags": [
+        "STRIDE-D",
+        "cost",
+        "core-demo"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "517c8610-c1e0-4019-824d-43a39c802c51",
+      "numericId": 9,
+      "threatSource": "Cost/DoS via the direct inference path",
+      "prerequisites": "agent invokes Bedrock directly (not through the gateway)",
+      "threatAction": "consume Bedrock tokens in a long tool-use loop",
+      "threatImpact": "Bedrock spend not bounded by any gateway rate limit",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A012"
+      ],
+      "statement": "A Cost/DoS via the direct inference path agent invokes Bedrock directly (not through the gateway) can consume Bedrock tokens in a long tool-use loop, which leads to Bedrock spend not bounded by any gateway rate limit",
+      "displayOrder": 9,
+      "status": "threatIdentified",
+      "tags": [
+        "STRIDE-D",
+        "cost"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "3998780b-596e-4a29-a5ab-dd2257274d5f",
+      "numericId": 10,
+      "threatSource": "An operator or auditor investigating an incident",
+      "prerequisites": "no per-operator audit trail for who flipped mode or ran acts",
+      "threatAction": "deny having disabled enforcement or triggered an action",
+      "threatImpact": "actions on the enforcement mode and runs are not attributable",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A009"
+      ],
+      "statement": "A An operator or auditor investigating an incident no per-operator audit trail for who flipped mode or ran acts can deny having disabled enforcement or triggered an action, which leads to actions on the enforcement mode and runs are not attributable",
+      "displayOrder": 10,
+      "status": "threatIdentified",
+      "tags": [
+        "STRIDE-R",
+        "observability"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "d8b89449-1b0d-48f0-bd35-a1951d29f6f4",
+      "numericId": 11,
+      "threatSource": "An observer of gateway error payloads",
+      "prerequisites": "gateway exceptionLevel DEBUG surfaces denial reasons verbatim",
+      "threatAction": "read policy denial details returned in MCP error responses",
+      "threatImpact": "policy structure/logic disclosed (intended for the demo UI, risky in prod)",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A010"
+      ],
+      "statement": "A An observer of gateway error payloads gateway exceptionLevel DEBUG surfaces denial reasons verbatim can read policy denial details returned in MCP error responses, which leads to policy structure/logic disclosed (intended for the demo UI, risky in prod)",
+      "displayOrder": 11,
+      "status": "threatIdentified",
+      "tags": [
+        "STRIDE-I",
+        "demo-feature"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "087f08af-9709-46f3-ab31-e84d687d7460",
+      "numericId": 12,
+      "threatSource": "An attacker probing IAM blast radius",
+      "prerequisites": "compromise of the Agent Lambda execution role",
+      "threatAction": "invoke any Bedrock foundation model / inference profile via the broad InvokeModel grant",
+      "threatImpact": "wider model access and cost than the demo needs",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A012"
+      ],
+      "statement": "A An attacker probing IAM blast radius compromise of the Agent Lambda execution role can invoke any Bedrock foundation model / inference profile via the broad InvokeModel grant, which leads to wider model access and cost than the demo needs",
+      "displayOrder": 12,
+      "status": "threatIdentified",
+      "tags": [
+        "STRIDE-E",
+        "iam",
+        "least-privilege"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "d818bd6c-2349-40eb-8641-fc270c9855c7",
+      "numericId": 13,
+      "threatSource": "An attacker with a foothold in the browser (XSS)",
+      "prerequisites": "an XSS sink in the SPA (none obvious; React, no dangerouslySetInnerHTML)",
+      "threatAction": "read the JWT access token from sessionStorage",
+      "threatImpact": "token theft and demo-API impersonation until token expiry",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A008"
+      ],
+      "statement": "A An attacker with a foothold in the browser (XSS) an XSS sink in the SPA (none obvious; React, no dangerouslySetInnerHTML) can read the JWT access token from sessionStorage, which leads to token theft and demo-API impersonation until token expiry",
+      "displayOrder": 13,
+      "status": "threatIdentified",
+      "tags": [
+        "STRIDE-I",
+        "frontend"
+      ],
+      "metadata": []
+    },
+    {
+      "id": "61bad56a-9aad-41e1-ac87-ce856de1c311",
+      "numericId": 14,
+      "threatSource": "A supply-chain or dependency risk",
+      "prerequisites": "npm (CDK/frontend) and boto3 dependencies pulled at build",
+      "threatAction": "introduce a malicious or vulnerable transitive dependency",
+      "threatImpact": "compromise of build/deploy or the running Lambdas",
+      "impactedGoal": [],
+      "impactedAssets": [
+        "A011"
+      ],
+      "statement": "A A supply-chain or dependency risk npm (CDK/frontend) and boto3 dependencies pulled at build can introduce a malicious or vulnerable transitive dependency, which leads to compromise of build/deploy or the running Lambdas",
+      "displayOrder": 14,
+      "status": "threatIdentified",
+      "tags": [
+        "STRIDE-T",
+        "supply-chain"
+      ],
+      "metadata": []
+    }
+  ]
+}

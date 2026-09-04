@@ -1,0 +1,6 @@
+{
+  "apiUrl": "http://localhost:9999",
+  "cognitoDomain": "https://example.auth.us-east-1.amazoncognito.com",
+  "clientId": "local-dev-client",
+  "redirectUri": "http://localhost:5173/"
+}

@@ -1,0 +1,14 @@
+node_modules/
+cdk/cdk.out/
+cdk/outputs.json
+cdk/dist/
+frontend/dist/
+*.log
+.demo-token
+**/.threatmodel/
+.protoshield/
+.DS_Store
+__pycache__/
+*.pyc
+.venv/
+*.tsbuildinfo
